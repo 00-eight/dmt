@@ -24,8 +24,12 @@ class DMTEntry(object):
         self.top = top
 
     @property
-    def datetime(self):
+    def todatetime(self):
         return datetime.fromisoformat(self.date.strip('\n')).isoformat() 
+        
+    @property
+    def datetime(self):
+        return datetime.fromisoformat(self.date.strip('\n'))
 
     @property
     def meminfo(self):
@@ -38,14 +42,20 @@ class DMTEntry(object):
     @property
     def processinfo(self):
         keys = ["PID","USER","PR","NI","VIRT","RES","SHR","S","CPU","MEM","TIME","NAME"]
-        longkeys = ["PID","VIRT","RES","SHR"]
+        lkeys = ["PID","VIRT","RES","SHR"]
+        fkeys = ["CPU", "MEM"]
         r = self.top.split("\n")[7::]
         r = [dict(zip(keys, i.split())) for i in r if i != ""]
         for i in r:
             for k,v in i.items():
-                if k in longkeys:
+                if k in lkeys:
                     try:
                         i[k] = int(v)
+                    except ValueError:
+                        i[k] = str(v)
+                elif k in fkeys:
+                    try:
+                        i[k] = float(v)
                     except ValueError:
                         i[k] = str(v)
         return r
@@ -106,47 +116,121 @@ def exportjson(outfile, data):
         logging.error("%s" % (str(e.msg)))
 
 
-def splotmem(data):
-    x_time = [i.datetime for i in data]
-    y1_memavail = [i.meminfo["MemAvailable"] for i in data]
-    y2_memtotal = [i.meminfo["MemTotal"] for i in data]
-    plt.plot(x_time, y1_memavail)
-    plt.plot(x_time, y2_memtotal)
+def plot_meminfo(eventRecords):
+    metrics = ["MemTotal", "MemFree", "MemAvailable", "Active", "Inactive", "Active(anon)", "Inactive(anon)", "Active(file)", "Inactive(file)"]
+    for i in metrics:
+        j = [(eventRecord.meminfo[i], eventRecord.datetime) for eventRecord in eventRecords]
+        xdata = [k[1] for k in j]
+        ydata = [k[0] for k in j]
+        plt.plot(xdata, ydata, label=i)
     plt.title("MemInfo")
     plt.ylabel("Memory Kb")
-    plt.xlabel("DateTime")
-    plt.legend(["MemAvailable","MemTotal"])
+    plt.xlabel("Time")
+    plt.legend(metrics)
     plt.xticks(rotation=90)
+    plt.ticklabel_format(axis='y', style='plain')
+    mplcursors.cursor(hover=True)
     plt.show()
 
 
-def splotproc(data):
-    pids = set([item["PID"] for sublist in data for item in sublist.processinfo])
+def plot_process_res(eventRecords, pids=None):
+    if pids == None:
+        pids = set([item["PID"] for sublist in eventRecords for item in sublist.processinfo])
+    else:
+        pids = set(pids)
     imgs = []
     for i in pids:
-        k = [(item["PID"],item["NAME"],item["RES"],sublist.datetime) for sublist in data for item in sublist.processinfo if item["PID"] == i]
-        ydata = [j[2] for j in k]
-        xdata = [j[3] for j in k]
-        name = str(k[0][0]) + " " + str(k[0][1])
+        j = [(item["PID"],item["NAME"],item["RES"],sublist.datetime) for sublist in eventRecords for item in sublist.processinfo if item["PID"] == i]
+        ydata = [k[2] for k in j]
+        xdata = [k[3] for k in j]
+        name = str(j[0][0]) + " " + str(j[0][1])
         imgs.append(name)
-        if len(k) != len(xdata):
-            logging.warn("Process Time mismatch for pid %s " % name)
         plt.plot(xdata, ydata, label=name)
     plt.legend(imgs)
-    plt.title("ProcInfo")
-    plt.xlabel("DateTime")
+    plt.title("Process RES Info")
+    plt.xlabel("Time")
     plt.ylabel("Memory Kb")
+    plt.xticks(rotation=90)
+    plt.ticklabel_format(axis='y', style='plain')
+    mplcursors.cursor(hover=True)
+    plt.show()
+
+
+def plot_process_shr(eventRecords, pids=None):
+    if pids == None:
+        pids = set([item["PID"] for sublist in eventRecords for item in sublist.processinfo])
+    else:
+        pids = set(pids)
+    imgs = []
+    for i in pids:
+        j = [(item["PID"],item["NAME"],item["SHR"],sublist.datetime) for sublist in eventRecords for item in sublist.processinfo if item["PID"] == i]
+        ydata = [k[2] for k in j]
+        xdata = [k[3] for k in j]
+        name = str(j[0][0]) + " " + str(j[0][1])
+        imgs.append(name)
+        plt.plot(xdata, ydata, label=name)
+    plt.legend(imgs)
+    plt.title("Process SHR Info")
+    plt.xlabel("Time")
+    plt.ylabel("Memory Kb")
+    plt.xticks(rotation=90)
+    plt.ticklabel_format(axis='y', style='plain')
+    mplcursors.cursor(hover=True)
+    plt.show()
+
+
+def plot_process_cpu(eventRecords, pids=None):
+    if pids == None:
+        pids = set([item["PID"] for sublist in eventRecords for item in sublist.processinfo])
+    else:
+        pids = set(pids)
+    imgs = []
+    for i in pids:
+        j = [(item["PID"],item["NAME"],item["CPU"],sublist.datetime) for sublist in eventRecords for item in sublist.processinfo if item["PID"] == i]
+        ydata = [k[2] for k in j]
+        xdata = [k[3] for k in j]
+        name = str(j[0][0]) + " " + str(j[0][1])
+        imgs.append(name)
+        plt.plot(xdata, ydata, label=name)
+    plt.legend(imgs)
+    plt.title("Process %CPU Info")
+    plt.xlabel("Time")
+    plt.ylabel("Percent CPU")
     plt.xticks(rotation=90)
     plt.ticklabel_format(axis='y', style='plain')
     mplcursors.cursor(hover=True)
     plt.show()
     
 
+def plot_process_mem(eventRecords, pids=None):
+    if pids == None:
+        pids = set([item["PID"] for sublist in eventRecords for item in sublist.processinfo])
+    else:
+        pids = set(pids)
+    imgs = []
+    for i in pids:
+        j = [(item["PID"],item["NAME"],item["MEM"],sublist.datetime) for sublist in eventRecords for item in sublist.processinfo if item["PID"] == i]
+        ydata = [k[2] for k in j]
+        xdata = [k[3] for k in j]
+        name = str(j[0][0]) + " " + str(j[0][1])
+        imgs.append(name)
+        plt.plot(xdata, ydata, label=name)
+    plt.legend(imgs)
+    plt.title("Process %MEM Info")
+    plt.xlabel("Time")
+    plt.ylabel("Percent MEM")
+    plt.xticks(rotation=90)
+    plt.ticklabel_format(axis='y', style='plain')
+    mplcursors.cursor(hover=True)
+    plt.show()
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="DMT analyzer")
     parser.add_argument('-f', help='infile', required=True)
     parser.add_argument('-o', help='outfile', required=False)
-    parser.add_argument('-p', help='plot', required=False)
+    parser.add_argument('-t', help='Plot Types', choices=["meminfo","res","shr","cpu","mem"], required=False)
+    parser.add_argument('-p', help='PIDs', required=False)
     args = vars(parser.parse_args())
     file = args["f"]
     data = parseFile(file)
@@ -154,5 +238,18 @@ if __name__ == '__main__':
         outfile = args["o"]
         exportjson(outfile, data)
     if args["p"]:
-        splotmem(data)
-        splotproc(data)
+        pids = [int(x) for x in args["p"].split(',')]
+    else:
+        pids = None
+    if args["t"]:
+        plottype = args["t"]
+        if plottype == "meminfo":
+            plot_meminfo(data)
+        if plottype == "res":
+            plot_process_res(data, pids)
+        if plottype == "shr":
+            plot_process_shr(data, pids)
+        if plottype == "cpu":
+            plot_process_cpu(data, pids)
+        if plottype == "mem":
+            plot_process_mem(data, pids)

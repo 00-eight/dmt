@@ -17,7 +17,7 @@ options:
 ```
 
 ## meminfo
-!docs/imgs/meminfo.png!
+!./docs/imgs/meminfo.png!
 
 ## res
-!docs/imgs/res.png!
+!./docs/imgs/res.png!
